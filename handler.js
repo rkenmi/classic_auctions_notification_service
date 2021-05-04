@@ -93,7 +93,7 @@ module.exports.dbWriter = async (event) => {
         data: { withSome: 'data' },
       });
 
-      await dynamoDb.update(getDDBUpdateAlarmParams(), function(err, data) {
+      await dynamoDb.update(getDDBUpdateAlarmParams(pushNotification), function(err, data) {
         if (err) {
           console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
         } else {
