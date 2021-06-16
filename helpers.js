@@ -2,12 +2,12 @@ module.exports = {
   toWoWCurrency: (value) => {
     const texts = [];
     if (value > 9999) {
-      texts.push(`${Math.floor(value / 10000)}g`);
+      texts.push(`${value / 10000}g`);
     }
     if (value > 99) {
-      texts.push(`${Math.floor((value % 100) / 100)}s`);
+      texts.push(`${(value / 100) % 100}s`);
     }
-    texts.push(`${Math.floor(value % 100)}c`);
+    texts.push(`${value % 100}c`);
 
     return texts.join(' ');
   },
@@ -19,7 +19,7 @@ module.exports = {
       "#disabled": "disabled"
     },
     ExpressionAttributeValues: {
-      ":disabled": false,
+      ":disabled": 0,
     }
   }),
 
@@ -35,9 +35,11 @@ module.exports = {
       "#disabled": "disabled"
     },
     ExpressionAttributeValues: {
-      ":enabled": true,
+      ":enabled": 1,
     },
     ReturnValues: "UPDATED_NEW"
-  })
+  }),
+
+  normalizeRealm: (realm) => realm.replace(' ', '-').toLowerCase()
 };
 

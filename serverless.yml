@@ -11,7 +11,7 @@
 #
 # Happy Coding!
 
-service: classic-ah-writer
+service: classic-ah-notifications
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
 #org: your-org-name
@@ -24,6 +24,8 @@ provider:
   name: aws
   runtime: nodejs12.x
   stage: dev
+  memorySize: 1024 # Overwrite the default memory size. Default is 1024
+  timeout: 60 # The default is 6 seconds. Note: API Gateway current maximum is 30 seconds
   lambdaHashingVersion: 20201221
   region: us-west-1
   environment:
@@ -71,18 +73,18 @@ provider:
 #    - include-me-dir/**
 
 functions:
-  dbWriter:
+  service:
     handler: handler.dbWriter
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
-#    events:
+    events:
 #      - httpApi:
 #          path: /users/create
 #          method: get
 #      - websocket: $connect
 #      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
+      - schedule: rate(3 minutes)
 #      - sns: greeter-topic
 #      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
 #      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
@@ -117,7 +119,7 @@ functions:
 
 resources:
   Resources:
-    ClassicAHDynamoDBTable:
+    ClassicAHAlarmsTable:
       Type: 'AWS::DynamoDB::Table'
       DeletionPolicy: Retain
       Properties:
@@ -129,6 +131,12 @@ resources:
           -
             AttributeName: alarmId
             AttributeType: "S"
+          -
+            AttributeName: itemId
+            AttributeType: "N"
+          -
+            AttributeName: disabled
+            AttributeType: "N"
         KeySchema:
           -
             AttributeName: userId
@@ -138,16 +146,26 @@ resources:
             KeyType: RANGE
         LocalSecondaryIndexes:
           -
-            IndexName: "userId-alarmId-index"
+            IndexName: "userId-itemId-index"
             KeySchema:
               -
                 AttributeName: userId
                 KeyType: HASH
               -
-                AttributeName: alarmId
+                AttributeName: itemId
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
+        GlobalSecondaryIndexes:
+          - IndexName: disabledIndex
+            KeySchema:
+              - AttributeName: disabled
+                KeyType: HASH
+            Projection:
+              ProjectionType: KEYS_ONLY
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1

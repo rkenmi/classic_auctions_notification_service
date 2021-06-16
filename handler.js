@@ -1,6 +1,6 @@
 'use strict';
 
-const {getDDBAlarmsParams, getDDBUpdateAlarmParams, toWoWCurrency} = require('./helpers');
+const {normalizeRealm, getDDBAlarmsParams, getDDBUpdateAlarmParams, toWoWCurrency} = require('./helpers');
 
 const axios = require('axios').default;
 const { Expo } = require('expo-server-sdk');
@@ -15,8 +15,11 @@ async function updateRealmFactionItemMap(realmFactionItemMap, urls) {
   const results = await axios.all(urls);
   if (results && results.length > 0) {
     for (const res of results) {
-      const realm = res.data.slug.split('-')[0];
-      if (res.data.slug.endsWith('alliance')) {
+      const slugData = res.data.slug.split('-');
+      const faction = slugData.pop();
+      const realm = slugData.join('-');
+
+      if ( faction === 'alliance' ) {
         const allianceItemsMap = {};
         res.data.data.forEach((item) => allianceItemsMap[item.itemId] = item);
         realmFactionItemMap[realm]['alliance'] = allianceItemsMap;
@@ -30,16 +33,16 @@ async function updateRealmFactionItemMap(realmFactionItemMap, urls) {
 }
 
 function addPushNotification(pushNotifications, realmFactionItemMap, item) {
-  const wowItemMap = realmFactionItemMap[item.realm.toLowerCase()][item.faction.toLowerCase()];
+  const wowItemMap = realmFactionItemMap[normalizeRealm(item.realm)][item.faction.toLowerCase()];
   const itemInfo = wowItemMap[item.itemId];
 
-  if (itemInfo && itemInfo.marketValue > 0) {
-    const marketValue = itemInfo.marketValue;
+  if (itemInfo && itemInfo.minBuyout > 0) {
+    const minBuyout = itemInfo.minBuyout;
 
-    if (item.priceComparator === 0 && marketValue < item.priceThreshold) {
-      pushNotifications.push({...item, marketValue});
-    } else if (item.priceComparator === 1 && marketValue > item.priceThreshold) {
-      pushNotifications.push({...item, marketValue});
+    if (item.priceComparator === 0 && minBuyout < item.priceThreshold) {
+      pushNotifications.push({...item, minBuyout});
+    } else if (item.priceComparator === 1 && minBuyout > item.priceThreshold) {
+      pushNotifications.push({...item, minBuyout});
     }
   }
 }
@@ -59,7 +62,8 @@ module.exports.dbWriter = async (event) => {
   const realmFactionItemMap = {};
   const allianceUrls = [];
   const hordeUrls = [];
-  for (const realm of realms) {
+  for (const realmName of realms) {
+    const realm = normalizeRealm(realmName);
     realmFactionItemMap[realm] = {};
     allianceUrls.push(axios.get(`https://api.nexushub.co/wow-classic/v1/items/${realm}-alliance`));
     hordeUrls.push(axios.get(`https://api.nexushub.co/wow-classic/v1/items/${realm}-horde`));
@@ -74,6 +78,7 @@ module.exports.dbWriter = async (event) => {
       addPushNotification(pushNotifications, realmFactionItemMap, item);
     });
 
+    console.log(`Found ${pushNotifications.length} notifications`);
     for (let pushNotification of pushNotifications) {
       // Each push token looks like ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
       const {pushToken} = pushNotification;
@@ -88,7 +93,7 @@ module.exports.dbWriter = async (event) => {
       messages.push({
         to: pushToken,
         sound: 'default',
-        body: `Price alert for ${pushNotification.itemName} - ${toWoWCurrency(pushNotification.marketValue)}`,
+        body: `Price alert for ${pushNotification.itemName} - ${toWoWCurrency(pushNotification.minBuyout)}`,
         priority: 'high',
         data: { withSome: 'data' },
       });
@@ -109,24 +114,22 @@ module.exports.dbWriter = async (event) => {
 // compressed).
     let chunks = expo.chunkPushNotifications(messages);
     let tickets = [];
-    (async () => {
       // Send the chunks to the Expo push notification service. There are
       // different strategies you could use. A simple one is to send one chunk at a
       // time, which nicely spreads the load out over time:
-      for (let chunk of chunks) {
-        try {
-          let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-          console.log(ticketChunk);
-          tickets.push(...ticketChunk);
-          // NOTE: If a ticket contains an error code in ticket.details.error, you
-          // must handle it appropriately. The error codes are listed in the Expo
-          // documentation:
-          // https://docs.expo.io/push-notifications/sending-notifications/#individual-errors
-        } catch (error) {
-          console.error(error);
-        }
+    for (let chunk of chunks) {
+      try {
+        let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        console.log(ticketChunk);
+        tickets.push(...ticketChunk);
+        // NOTE: If a ticket contains an error code in ticket.details.error, you
+        // must handle it appropriately. The error codes are listed in the Expo
+        // documentation:
+        // https://docs.expo.io/push-notifications/sending-notifications/#individual-errors
+      } catch (error) {
+        console.error(error);
       }
-    })()
+    }
 
   }
 
