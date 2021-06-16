@@ -2,10 +2,10 @@ module.exports = {
   toWoWCurrency: (value) => {
     const texts = [];
     if (value > 9999) {
-      texts.push(`${value / 10000}g`);
+      texts.push(`${Math.floor(value / 10000)}g`);
     }
     if (value > 99) {
-      texts.push(`${(value / 100) % 100}s`);
+      texts.push(`${Math.floor(value / 100) % 100}s`);
     }
     texts.push(`${value % 100}c`);
 
