@@ -1,5 +1,5 @@
 # Classic Auctions Push Notification Service
-An AWS Lambda micro-service for generating and submitting push notifications to Expo and updating push notification metadata
+An AWS Lambda micro-service for generating notifications to downstream services (Expo push notifications, analytics, etc.)
 
 ## Pre-requisites
 
